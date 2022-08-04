@@ -1,6 +1,9 @@
 param (
+    [Parameter(Mandatory=$true)][string]$bricksEmail,
+    [Parameter(Mandatory=$true)][string]$bricksPassword,
     [Parameter(Mandatory=$true)][string]$email,
-    [Parameter(Mandatory=$true)][string]$password,
+    [Parameter(Mandatory=$true)][string]$emailPassword,
+    [Parameter(Mandatory=$true)][string]$smtpServer,
     [Parameter(Mandatory=$true)][string]$maxPrice,
     [Parameter(Mandatory=$true)][string]$minProfitability,
     [Parameter(Mandatory=$true)][string]$minDividend,
@@ -16,12 +19,11 @@ param (
 }
 
 function get_login_token {
-    param($email, $password)
+    param($bricksEmail, $bricksPassword)
     try
     {
-        $body = "{`"email`":`"$email`",`"password`":`"$password`"}"
-        $response = Invoke-RestMethod 'https://api.bricks.co/customers/email/sign-in' -Method 'POST' -Headers $headers -Body $body
-        $response | ConvertTo-Json    
+        $body = "{`"email`":`"$bricksEmail`",`"password`":`"$bricksPassword`"}"
+        $response = Invoke-RestMethod 'https://api.bricks.co/customers/email/sign-in' -Method 'POST' -Headers $headers -Body $body 
         $token = $response."token"
         $headers.Add("Authorization", "Bearer $token")
     }
@@ -33,29 +35,33 @@ function get_login_token {
 
 $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
 $headers.Add("Content-Type", "application/json")
-get_login_token $email $password
-$cursor=0
-$totalOffers=1
-while($cursor -le 50)
+
+get_login_token $bricksEmail $bricksPassword
+
+$cursor = 0
+$totalOffers = 1
+[bool]$found = $false
+
+while(!$found)
 {
     try
     {
-        $url = "https://api.bricks.co/marketplace/deals?priceRange=10&priceRange=$maxPrice&profitabilityRange=$minProfitability&profitabilityRange=20&dividendsRange=$minDividend&dividendsRange=15&cursor=$cursor"
+        $filters="priceRange=1000&priceRange=$maxPrice&profitabilityRange=$minProfitability&profitabilityRange=20&dividendsRange=$minDividend&dividendsRange=15&cursor=$cursor"
+        $url = "https://api.bricks.co/marketplace/deals?$filters"
         $response = Invoke-RestMethod $url -Method 'GET' -Headers $headers
-        $response | ConvertTo-Json -Depth 5
-
         $responseData = $response."data"
         $totalOffers = $response."total"."offers"
-        Write-Output $responseData.length
         if($responseData.length -ge 1) 
         {
+            $processing = [Math]::Truncate($cursor*100/$totalOffers)
+            Write-Output "$cursor offers processed over $totalOffers ($processing%)"
             Foreach($i in $responseData)
             {
                 $deltaValuation = $i."performance"."deltaValuation"
-                Write-Output "deltaValuation = $deltaValuation"
                 if($deltaValuation -lt $maxDeltaValuation)
                 {
-                    $arr += @($i."property"."id")
+                    Write-Output "Found !!!"
+                    $arr += @("https://app.bricks.co/marketplace?$filters")
                 }
             }
         }
@@ -66,10 +72,24 @@ while($cursor -le 50)
     {
         process_error($_.Exception)
     }
-
-    #Send-MailMessage -To "louis.cochinho@hotmail.fr" -From ""  -Subject "New bricks in marketplace" -Body 'https://app.bricks.co/marketplace' -Credential (Get-Credential) -SmtpServer "smtp server" -Port 587
     
-    start-sleep -seconds 2
+    start-sleep -seconds 1
+
+    if($cursor -ge $totalOffers)
+    {
+        if($arr.length -gt 0)
+        {
+            $found=$true
+        }
+        else
+        {
+            Write-Output "No offers found..."
+            $cursor = 10
+        } 
+    }
 }
 
 Write-Output "arr=$arr"
+[securestring]$secStringPassword = ConvertTo-SecureString $emailPassword -AsPlainText -Force
+$credential = New-Object System.Management.Automation.PSCredential ($email, $secStringPassword)
+Send-MailMessage -To "$email" -From "$email"  -Subject "New bricks in marketplace" -Body "$arr" -UseSsl -Credential $credential -SmtpServer "$smtpServer" -Port 587
