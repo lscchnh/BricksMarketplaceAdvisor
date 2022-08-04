@@ -31,6 +31,6 @@ Example :
 
 The following command will look for offers of maximum 500€ with 8% of minimum profitability, 5% of minimum dividend and 1% of delta valuation.
 
-```ps
+```sh
 bricks-marketplace-polling.ps1 mybricksemail@email.com mybrickspassword mypersonalemail mypersonalemailpassword smtp.office365.com 50000 8 5 1
 ```
