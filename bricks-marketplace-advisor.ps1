@@ -38,11 +38,10 @@ $headers.Add("Content-Type", "application/json")
 
 get_login_token $bricksEmail $bricksPassword
 
-$cursor = 0
+$cursor = 10
 $totalOffers = 1
-[bool]$found = $false
 
-while(!$found)
+while($true)
 {
     try
     {
@@ -72,24 +71,24 @@ while(!$found)
     {
         process_error($_.Exception)
     }
-    
-    start-sleep -seconds 1
 
     if($cursor -ge $totalOffers)
     {
         if($arr.length -gt 0)
         {
-            $found=$true
+            [securestring]$secStringPassword = ConvertTo-SecureString $emailPassword -AsPlainText -Force
+            $credential = New-Object System.Management.Automation.PSCredential ($email, $secStringPassword)
+            Send-MailMessage -To "$email" -From "$email"  -Subject "New bricks in marketplace" -Body "$arr" -UseSsl -Credential $credential -SmtpServer "$smtpServer" -Port 587
+            $arr=$null
+            Write-Output "Email sent to $email."         
         }
         else
         {
             Write-Output "No offers found..."
-            $cursor = 10
-        } 
+        }
+
+        Write-Output "Waiting 5 minutes."
+        start-sleep -seconds 300
+        $cursor = 10       
     }
 }
-
-Write-Output "arr=$arr"
-[securestring]$secStringPassword = ConvertTo-SecureString $emailPassword -AsPlainText -Force
-$credential = New-Object System.Management.Automation.PSCredential ($email, $secStringPassword)
-Send-MailMessage -To "$email" -From "$email"  -Subject "New bricks in marketplace" -Body "$arr" -UseSsl -Credential $credential -SmtpServer "$smtpServer" -Port 587
