@@ -50,10 +50,9 @@ while($true)
         $response = Invoke-RestMethod $url -Method 'GET' -Headers $headers
         $responseData = $response."data"
         $totalOffers = $response."total"."offers"
+        $processing = [Math]::Truncate($cursor*100/$totalOffers)
         if($responseData.length -ge 1) 
-        {
-            $processing = [Math]::Truncate($cursor*100/$totalOffers)
-            Write-Output "$cursor offers processed over $totalOffers ($processing%)"
+        {                      
             Foreach($i in $responseData)
             {
                 $deltaValuation = $i."performance"."deltaValuation"
@@ -65,13 +64,16 @@ while($true)
             }
         }
 
+        Write-Output "$cursor offers processed over $totalOffers ($processing%)"
+        
         $cursor+=10
+        start-sleep -seconds 1
     }
     catch
     {
         process_error($_.Exception)
     }
-
+    
     if($cursor -ge $totalOffers)
     {
         if($arr.length -gt 0)
