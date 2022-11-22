@@ -55,7 +55,7 @@ while($true)
         {                      
             Foreach($i in $responseData)
             {
-                $deltaValuation = $i."performance"."deltaValuation"
+                $deltaValuation = $i."performance"."brickPriceVariationWithCommission"                
                 if($deltaValuation -lt $maxDeltaValuation)
                 {
                     Write-Output "Found !!!"
